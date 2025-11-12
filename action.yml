@@ -1,17 +1,56 @@
-name: Action Name
-description: Action description
+name: Deploy metadata to Salesforce org
+description: Deploy metadata to a specified Salesforce org using SF CLI
 inputs:
-  input-parameter:
-    description: Description of input parameter
+  path:
+    description: "Path to metadata"
     required: true
+  target-org:
+    description: "Target org alias or username"
+    required: true
+  validate-only:
+    description: "Is validation and not deployment"
+    required: false
+    default: "false"
 runs:
   using: "composite"
   steps:
     
-    - name: Authenticate org
+    - name: Deploy metadata
       run: |
-        echo "Hello World!"
-        echo "Input Parameter: $INPUT_PARAMETER"
+        set -euo pipefail
+
+        cleanup() { rm -f output.json; }
+        trap cleanup EXIT
+
+        command=("sf" "project" "deploy" "start" \
+          "--source-dir" "$INPUT_PATH" \
+          "--target-org" "$INPUT_TARGET_ORG" \
+          "--test-level" "RunLocalTests" \
+          "--json"
+        )
+
+        if [ "$INPUT_VALIDATE_ONLY" = "true" ]; then
+          command+=("--check-only")
+        fi
+
+        echo "Command to execute: ${command[*]}"
+
+        "${command[@]}" | tee output.json
+
+        STATUS=$(jq -r '.status' output.json)
+        if [ "$STATUS" = "0" ]; then
+          if [ "$INPUT_VALIDATE_ONLY" = "true" ]; then
+            echo "Successfully validated metadata."
+          else
+            echo "Successfully deployed metadata."
+          fi
+        else
+          MESSAGE=$(jq -r '.message // "Unknown error"' output.json)
+          echo "::error title=Deployment failed.::$MESSAGE"
+          exit 1
+        fi
       shell: bash
       env:
-        INPUT_PARAMETER: ${{ inputs.input-parameter }}
+        INPUT_VALIDATE_ONLY: ${{ inputs.validate-only }}
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_TARGET_ORG: ${{ inputs.target-org }}

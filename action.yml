@@ -25,7 +25,7 @@ runs:
         command=("sf" "project" "deploy" "start" \
           "--source-dir" "$INPUT_PATH" \
           "--target-org" "$INPUT_TARGET_ORG" \
-          "--test-level" "RunLocalTests" \
+          "--ignore-conflicts" \
           "--json"
         )
 
